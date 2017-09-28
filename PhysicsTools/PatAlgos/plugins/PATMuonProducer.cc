@@ -55,6 +55,7 @@ PATMuonProducer::PATMuonProducer(const edm::ParameterSet & iConfig) :
   useUserData_(iConfig.exists("userData")),
   computeMuonMVA_(false),
   recomputeBasicSelectors_(false),
+  relaxTrackingRequirements_(false),
   mvaDrMax_(0),
   mvaUseJec_(false),
   isolator_(iConfig.exists("userIsolation") ? iConfig.getParameter<edm::ParameterSet>("userIsolation") : edm::ParameterSet(), consumesCollector(), false)
@@ -141,6 +142,7 @@ PATMuonProducer::PATMuonProducer(const edm::ParameterSet & iConfig) :
 
   // standard selectors
   recomputeBasicSelectors_ = iConfig.getParameter<bool>("recomputeBasicSelectors");
+  relaxTrackingRequirements_  = iConfig.getParameter<bool>("relaxTrackingRequirements");
   computeMuonMVA_ = iConfig.getParameter<bool>("computeMuonMVA");
   if (computeMuonMVA_ and not computeMiniIso_) 
     throw cms::Exception("ConfigurationError") << "MiniIso is needed for Muon MVA calculation.\n";
@@ -486,7 +488,7 @@ void PATMuonProducer::produce(edm::Event & iEvent, const edm::EventSetup & iSetu
   for(auto& muon: *patMuons){
     if (recomputeBasicSelectors_){
       muon.setSelectionMask(0);
-      muon::setCutBasedSelectorFlags(muon, pv);
+      muon::setCutBasedSelectorFlags(muon, pv, relaxTrackingRequirements_);
     }
     if (computeMiniIso_){
       // MiniIsolation working points

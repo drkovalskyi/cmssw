@@ -166,6 +166,7 @@ namespace pat {
     /// standard muon selectors
     bool computeMuonMVA_;
     bool recomputeBasicSelectors_;
+    bool relaxTrackingRequirements_;
     double mvaDrMax_;
     bool mvaUseJec_;
     edm::EDGetTokenT<reco::JetTagCollection> mvaBTagCollectionTag_;

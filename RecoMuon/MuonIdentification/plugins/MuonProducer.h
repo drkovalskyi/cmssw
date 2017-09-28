@@ -100,6 +100,7 @@ private:
   bool fillShoweringInfo_;
   bool fillTimingInfo_;
   bool computeStandardSelectors_;
+  bool relaxTrackingRequirements_;
 
   edm::InputTag theTrackDepositName;
   edm::InputTag theEcalDepositName;

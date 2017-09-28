@@ -52,6 +52,7 @@ MuonProducer::MuonProducer(const edm::ParameterSet& pSet):debug_(pSet.getUntrack
   fillShoweringInfo_          = pSet.getParameter<bool>("FillShoweringInfo");
   fillTimingInfo_             = pSet.getParameter<bool>("FillTimingInfo");
   computeStandardSelectors_   = pSet.getParameter<bool>("ComputeStandardSelectors");
+  relaxTrackingRequirements_  = pSet.getParameter<bool>("RelaxTrackingRequirements");
 
   produces<reco::MuonCollection>();
 
@@ -446,7 +447,7 @@ void MuonProducer::produce(edm::Event& event, const edm::EventSetup& eventSetup)
      // Standard Selectors - keep it at the end so that all inputs are available
      if (computeStandardSelectors_){
        outMuon.setSelectionMask(0); // reset flags
-       muon::setCutBasedSelectorFlags(outMuon, vertex);
+       muon::setCutBasedSelectorFlags(outMuon, vertex, relaxTrackingRequirements_);
      }
 
      outputMuons->push_back(outMuon); 

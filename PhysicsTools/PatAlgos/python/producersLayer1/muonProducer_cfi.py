@@ -107,6 +107,7 @@ patMuons = cms.EDProducer("PATMuonProducer",
     # Don't forget to set flags properly in miniAOD_tools.py                      
     computeMuonMVA = cms.bool(False),
     recomputeBasicSelectors = cms.bool(True),
+    relaxTrackingRequirements = cms.bool(False),
     mvaUseJec = cms.bool(True),
     mvaDrMax = cms.double(0.4),
     mvaJetTag = cms.InputTag("pfCombinedInclusiveSecondaryVertexV2BJetTags"),
@@ -116,6 +117,8 @@ patMuons = cms.EDProducer("PATMuonProducer",
                           
 )
 
+from Configuration.Eras.Modifier_tracker_apv_vfp30_2016_cff import tracker_apv_vfp30_2016 as _tracker_apv_vfp30_2016
+_tracker_apv_vfp30_2016.toModify(patMuons, relaxTrackingRequirements = cms.bool(True))
 
 
 

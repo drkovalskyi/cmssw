@@ -94,6 +94,10 @@ muons = cms.EDProducer("MuonProducer",
                        CosmicIdMap = cms.InputTag("cosmicsVeto"),
 
                        ComputeStandardSelectors = cms.bool(True),
+                       RelaxTrackingRequirements = cms.bool(False),
                        vertices = cms.InputTag("offlinePrimaryVertices")
                        
                        )
+
+from Configuration.Eras.Modifier_tracker_apv_vfp30_2016_cff import tracker_apv_vfp30_2016 as _tracker_apv_vfp30_2016
+_tracker_apv_vfp30_2016.toModify(muons, RelaxTrackingRequirements = cms.bool(True))
