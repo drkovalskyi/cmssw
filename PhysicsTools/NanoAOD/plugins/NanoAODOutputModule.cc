@@ -38,6 +38,7 @@
 #include "DataFormats/NanoAOD/interface/FlatTable.h"
 #include "DataFormats/NanoAOD/interface/UniqueString.h"
 #include "PhysicsTools/NanoAOD/plugins/TableOutputBranches.h"
+#include "PhysicsTools/NanoAOD/plugins/LumiOutputBranches.h"
 #include "PhysicsTools/NanoAOD/plugins/TriggerOutputBranches.h"
 #include "PhysicsTools/NanoAOD/plugins/EventStringOutputBranches.h"
 #include "PhysicsTools/NanoAOD/plugins/SummaryTableOutputBranches.h"
@@ -121,6 +122,7 @@ private:
   std::vector<EventStringOutputBranches> m_evstrings;
 
   std::vector<SummaryTableOutputBranches> m_runTables;
+  std::vector<LumiOutputBranches> m_lumiTables;
 
   std::vector<std::pair<std::string,edm::EDGetToken>> m_nanoMetadata;
 
@@ -225,6 +227,10 @@ NanoAODOutputModule::writeLuminosityBlock(edm::LuminosityBlockForOutput const& i
   jr->reportLumiSection(m_jrToken, iLumi.id().run(), iLumi.id().value());
 
   m_commonLumiBranches.fill(iLumi.id());
+  // fill all tables, starting from main tables and then doing extension tables
+  for (unsigned int extensions = 0; extensions <= 1; ++extensions) {
+      for (auto & t : m_lumiTables) t.fill(iLumi,*m_lumiTree, extensions);
+  }
   m_lumiTree->Fill();
 
   m_processHistoryRegistry.registerProcessHistory(iLumi.processHistory());
@@ -291,6 +297,7 @@ NanoAODOutputModule::openFile(edm::FileBlock const&) {
   m_triggers_areSorted = false;
   m_evstrings.clear();
   m_runTables.clear();
+  m_lumiTables.clear();
   const auto & keeps = keptProducts();
   for (const auto & keep : keeps[edm::InEvent]) {
       if(keep.first->className() == "nanoaod::FlatTable" )
@@ -313,6 +320,11 @@ NanoAODOutputModule::openFile(edm::FileBlock const&) {
       else throw cms::Exception("Configuration", "NanoAODOutputModule cannot handle class " + keep.first->className() + " in Run branch");     
   }
 
+  for (const auto & keep : keeps[edm::InLumi]) {
+      if(keep.first->className() == "nanoaod::FlatTable" )
+	      m_lumiTables.push_back(LumiOutputBranches(keep.first, keep.second));
+      else throw cms::Exception("Configuration", "NanoAODOutputModule cannot handle class " + keep.first->className() + " in Lumi branch");     
+  }
 
   // create the trees
   m_tree.reset(new TTree("Events","Events"));
