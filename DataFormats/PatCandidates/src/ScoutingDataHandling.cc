@@ -3,6 +3,9 @@
 #include "DataFormats/Math/interface/Point3D.h"
 #include "DataFormats/Math/interface/libminifloat.h"
 
+// Run3ScoutingMuon::m() is 0 (HLT muon candidates are massless), so use the PDG muon mass
+constexpr double scoutingMuonMass = 0.1056583755;
+
 float reduce_precision(float f, int mantissaPrecision = 10) {
   return MiniFloatConverter::reduceMantissaToNbitsRounding(f, mantissaPrecision);
 }
@@ -93,7 +96,7 @@ Run3ScoutingTrack pat::makeScoutingTrack(const reco::Track& trk) {
 }
 
 pat::Muon pat::makePatMuon(const Run3ScoutingMuon& sMuon) {
-  reco::Candidate::PolarLorentzVector p4(sMuon.pt(), sMuon.eta(), sMuon.phi(), sMuon.m());
+  reco::Candidate::PolarLorentzVector p4(sMuon.pt(), sMuon.eta(), sMuon.phi(), scoutingMuonMass);
 
   auto track = makeRecoTrack(sMuon);
 

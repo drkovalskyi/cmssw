@@ -10,6 +10,11 @@
 #include "DataFormats/TrackReco/interface/HitPattern.h"
 #include <limits>
 
+namespace {
+  // Run3ScoutingMuon::m() is 0 (HLT muon candidates are massless), so use the PDG muon mass
+  constexpr double scoutingMuonMass = 0.1056583755;
+}  // namespace
+
 using namespace pat;
 
 /// default constructor
@@ -161,7 +166,7 @@ Muon::Muon(const Run3ScoutingMuon& aMuon)
   initImpactParameters();
   initSimInfo();
 
-  reco::Candidate::PolarLorentzVector p4(aMuon.pt(), aMuon.eta(), aMuon.phi(), aMuon.m());
+  reco::Candidate::PolarLorentzVector p4(aMuon.pt(), aMuon.eta(), aMuon.phi(), scoutingMuonMass);
   auto track = makeRecoTrack(aMuon);
 
   this->setCharge(aMuon.charge());
