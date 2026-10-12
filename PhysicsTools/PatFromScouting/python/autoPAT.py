@@ -4,6 +4,7 @@ autoPAT - Automatic PAT/MiniAOD and NanoAOD configuration mappings for scouting.
 Defines flavors for PAT and NANO steps:
     --step PAT:@Scout   (HLTSCOUT -> MiniAOD)
     --step NANO:@ScoutMini  (Scouting MiniAOD -> NanoAOD)
+    --step NANO:@ScoutBPH   (Scouting MiniAOD -> NanoAOD with BPH content)
 
 Usage:
     cmsDriver.py ... --step PAT:@Scout ...
@@ -61,5 +62,11 @@ autoNANO_scouting = {
     'ScoutMini': {
         'sequence': 'PhysicsTools/PatFromScouting/scoutingNanoAOD_cff.scoutingNanoAODTask',
         'customize': 'PhysicsTools/PatFromScouting/scoutingNanoAOD_cff.customiseScoutingNanoAOD'
+    },
+
+    # BPH NanoAOD from Scouting MiniAOD: scouting NanoAOD + PhysicsTools/BPHNano content
+    'ScoutBPH': {
+        'sequence': '@ScoutMini+PhysicsTools/PatFromScouting/scoutingBPHNano_cff.scoutingBPHNanoSequence',
+        'customize': '@ScoutMini'
     },
 }

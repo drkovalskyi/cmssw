@@ -46,6 +46,23 @@ cmsDriver.py scoutNano \
     --data -n 100
 ```
 
+**Step 2 (alternative): MiniAOD → BPH NanoAOD**
+
+Scouting NanoAOD tables plus the `PhysicsTools/BPHNano` content (dimuons, tracks, V0s, B candidates):
+```bash
+cmsDriver.py scoutBPHNano \
+    --scenario pp \
+    --conditions auto:run3_data_prompt \
+    --era Run3_2024 \
+    --eventcontent NANOAOD \
+    --datatier NANOAOD \
+    --step NANO:@ScoutBPH \
+    --filein file:scoutingMiniAOD.root \
+    --fileout file:scoutingBPHNanoAOD.root \
+    --processName NANO \
+    --data -n 100
+```
+
 Note:
 - Use `--era Run3_2025` for 2025 data
 - The `--processName NANO` avoids conflicts with the MiniAOD process name
@@ -77,6 +94,9 @@ cmsRun PhysicsTools/PatFromScouting/test/test_standardNanoAOD_cfg.py
 | `slimmedJets` | `pat::JetCollection` | AK4 PF jets with b-tagging |
 | `slimmedMETs` | `pat::METCollection` | MET from scouting PF data |
 | `scoutingTracks` | `reco::TrackCollection` | Tracks with hit info as ValueMaps |
+| `lostTracks` | `pat::PackedCandidateCollection` | Scouting tracks not matched to any PF candidate |
+| `slimmedKshortVertices` | `reco::VertexCompositePtrCandidateCollection` | K0S → ππ reconstructed from scouting tracks |
+| `slimmedLambdaVertices` | `reco::VertexCompositePtrCandidateCollection` | Λ → pπ reconstructed from scouting tracks |
 | `offlineBeamSpot` | `reco::BeamSpot` | From conditions database |
 | `fixedGridRhoFastjetAll` | `double` | Rho copied from HLT scouting |
 | `gtStage2Digis` | `GlobalAlgBlkBxCollection` | L1 trigger decisions (unpacked from raw) |
@@ -105,7 +125,7 @@ cmsRun PhysicsTools/PatFromScouting/test/test_standardNanoAOD_cfg.py
 |---------|-------|
 | Muon kinematics | pt, eta, phi, mass, charge |
 | Muon track quality | chi2, nValidHits, dxy, dz |
-| Muon ID flags | isGlobal, isTracker, isStandalone, isPF |
+| Muon ID flags | isGlobal, isTracker, isStandalone, isPF (muon track matched to a scouting PF muon), isLooseMuon() |
 | Muon isolation | ecalIso, hcalIso, trkIso (calorimeter-based, not PF components) |
 | Muon station/layer counts | nStations, nTrackerLayers, nPixelLayers, nChambers |
 | Muon hit counts | nValidMuonHits, nValidPixelHits, nValidStripHits |
@@ -136,7 +156,8 @@ cmsRun PhysicsTools/PatFromScouting/test/test_standardNanoAOD_cfg.py
 | ParticleNet/DeepJet | Requires full constituent info |
 | AK8/Fat jets | Not produced in scouting |
 | Tau leptons | Not reconstructed in scouting |
-| HLT trigger objects | hltTriggerSummaryAOD not saved in scouting |
+| HLT trigger objects | hltTriggerSummaryAOD not saved in scouting (BPHMuon_isTriggering and BPHMuon_fired_* are always 0) |
+| Tracks below 1 GeV | hltScoutingTrackPacker stores tracks with pT > 1 GeV; PF candidates below that have no track details |
 | GenParticles | Data only (no MC scouting) |
 | MET corrections | No Type-1 corrections available (raw MET only) |
 | Electron/Photon MVA ID | Requires full shower info |
@@ -153,6 +174,8 @@ cmsRun PhysicsTools/PatFromScouting/test/test_standardNanoAOD_cfg.py
 
 ### Muons
 - Uses `pat::Muon(const Run3ScoutingMuon&)` constructor from DataFormats/PatCandidates
+- Mass set to the PDG muon mass: `Run3ScoutingMuon::m()` is 0, which biased vertex-fitted dimuon masses (J/psi by about -8 MeV)
+- PFMuon type bit set when the muon track matches a scouting PF muon candidate (sqrt(dR² + (dpt/pt)²) < 0.01), so `isPFMuon()` and `isLooseMuon()` work
 - Track info embedded directly (fix applied for persistence)
 - Isolation mapped to `reco::MuonIsolation` structure (ecalIso, hcalIso, trkIso)
 - Station and hit count information derived from scouting muon data
@@ -191,6 +214,17 @@ ecalIso, hcalIso, trkIso
 ### Tracks
 - Uses `pat::makeRecoTrack()` helper
 - Hit pattern info stored as ValueMaps (nValidPixelHits, nValidStripHits, nTrackerLayersWithMeasurement)
+- `packedPFCandidates` also produces an `edm::Association` from `scoutingTracks` to the matched candidates
+
+### Lost Tracks
+- `scoutingTracks` not matched to a `packedPFCandidate`, converted to `pat::PackedCandidate` with track details (pion mass, pdgId ±211)
+- Flagged high purity: scouting tracks come from `hltPFMuonMerging`, which contains only high-purity tracks
+- Also produces an `edm::Association` from `scoutingTracks` to the lost track candidates
+
+### V0s
+- `generalV0Candidates`: standard `V0Producer` run on `scoutingTracks`, with `innerHitPosCut` disabled (scouting tracks have no TrackExtra)
+- `slimmedKshortVertices`, `slimmedLambdaVertices`: `PATSecondaryVertexSlimmer` with daughters pointing to `packedPFCandidates`/`lostTracks`
+- Efficiency is lower than offline: HLT tracking is seeded close to the primary vertex and tracks are stored only above 1 GeV
 
 ### L1 Objects
 - `gtStage2Digis`: L1 trigger decisions unpacked from raw FED data (`hltFEDSelectorL1`)
@@ -213,12 +247,14 @@ PhysicsTools/PatFromScouting/
 │   ├── Run3ScoutingParticleToPackedCandidateProducer.cc
 │   ├── Run3ScoutingL1MuonProducer.cc
 │   ├── Run3ScoutingL1CaloProducer.cc
+│   ├── ScoutingLostTracksProducer.cc
 │   └── ScoutingRhoProducer.cc
 ├── python/
 │   ├── autoPAT.py                      # cmsDriver flavor definitions (@Scout, @ScoutMini)
 │   ├── scoutingToMiniAOD_cff.py        # Step 1: RAW → MiniAOD producers
 │   ├── scoutingMiniAOD_cff.py          # Alternative MiniAOD config with rho variants
 │   ├── scoutingNanoAOD_cff.py          # Step 2: MiniAOD → NanoAOD tables
+│   ├── scoutingBPHNano_cff.py          # Step 2: BPH NanoAOD content (PhysicsTools/BPHNano)
 │   ├── nanoAOD_scouting_cff.py         # Customizations for standard NanoAOD on scouting MiniAOD
 │   └── nanoAOD_customizations_cff.py   # Additional NanoAOD customization helpers
 ├── test/
@@ -242,6 +278,7 @@ Defines `@`-prefixed flavor mappings for `cmsDriver --step PAT:@... / NANO:@...`
 | `@Scout` | PAT | Scouting HLTSCOUT → MiniAOD |
 | `@ScoutVtx` | PAT | Same as `@Scout` but with vertex-aware muons (2024+) |
 | `@ScoutMini` | NANO | Scouting MiniAOD → NanoAOD |
+| `@ScoutBPH` | NANO | Scouting MiniAOD → NanoAOD with `PhysicsTools/BPHNano` content |
 
 ### scoutingToMiniAOD_cff.py
 
@@ -253,7 +290,8 @@ from PhysicsTools.PatFromScouting.scoutingToMiniAOD_cff import scoutingToMiniAOD
 # Task includes all producers with standard MiniAOD names:
 # packedPFCandidates, offlineSlimmedPrimaryVertices, offlineBeamSpot,
 # slimmedMuons, slimmedElectrons, slimmedPhotons, slimmedJets, slimmedMETs,
-# scoutingTracks, fixedGridRhoFastjetAll, gtStage2Digis, gmtStage2Digis, caloStage2Digis
+# scoutingTracks, lostTracks, generalV0Candidates, slimmedKshortVertices, slimmedLambdaVertices,
+# fixedGridRhoFastjetAll, gtStage2Digis, gmtStage2Digis, caloStage2Digis
 ```
 
 ### scoutingNanoAOD_cff.py
@@ -264,6 +302,11 @@ NanoAOD tables for Step 2:
 from PhysicsTools.PatFromScouting.scoutingNanoAOD_cff import customiseScoutingNanoAOD
 process = customiseScoutingNanoAOD(process)
 ```
+
+### scoutingBPHNano_cff.py
+
+BPH NanoAOD content for Step 2 (`NANO:@ScoutBPH`): the same producers and tables as the data branch of
+`PhysicsTools/NanoAOD/custom_bph_cff.nanoAOD_customizeBPH`, in `scoutingBPHNanoSequence`.
 
 ### nanoAOD_scouting_cff.py
 
@@ -298,6 +341,8 @@ process = customiseNanoForScoutingMiniAOD(process)
 - `DataFormats/TrackReco`
 - `DataFormats/MuonReco`
 - `PhysicsTools/NanoAOD`
+- `PhysicsTools/BPHNano` (for `NANO:@ScoutBPH`)
+- `RecoVertex/V0Producer` (for V0s)
 - `L1Trigger/L1TGlobal` (for L1TRawToDigi)
 
 ## Testing
