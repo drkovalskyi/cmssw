@@ -128,3 +128,25 @@ process.moduleToTest(process.toTest)
     REQUIRE_NOTHROW(tester.testBeginAndEndJobOnly());
   }
 }
+
+TEST_CASE("Standard checks of ScoutingLostTracksProducer", s_tag) {
+  const std::string baseConfig{
+      R"_(from FWCore.TestProcessor.TestProcess import *
+process = TestProcess()
+process.toTest = cms.EDProducer("ScoutingLostTracksProducer",
+    tracks = cms.InputTag("scoutingTracks"),
+    trackVertexIndex = cms.InputTag("scoutingTracks", "vertexIndex"),
+    packedPFCandidates = cms.InputTag("packedPFCandidates"),
+    vertices = cms.InputTag("offlineSlimmedPrimaryVertices")
+)
+process.moduleToTest(process.toTest)
+)_"};
+
+  edm::test::TestProcessor::Config config{baseConfig};
+  SECTION("base configuration is OK") { REQUIRE_NOTHROW(edm::test::TestProcessor(config)); }
+
+  SECTION("beginJob and endJob only") {
+    edm::test::TestProcessor tester(config);
+    REQUIRE_NOTHROW(tester.testBeginAndEndJobOnly());
+  }
+}

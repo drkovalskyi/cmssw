@@ -4,6 +4,8 @@
  * Converts Run3ScoutingParticle to pat::PackedCandidate for MiniAOD compatibility.
  * Matches charged candidates to reco::Tracks to embed track details
  * (hasTrackDetails() == true, dxyError/dzError/normalizedChi2/hit counts available).
+ * Also produces an Association from the reco::Tracks to the matched candidates,
+ * as needed by lost track and V0 slimming.
  *
  * Requires vertices and scoutingTracks to be produced first.
  */
@@ -19,6 +21,7 @@
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 
+#include "DataFormats/Common/interface/Association.h"
 #include "DataFormats/PatCandidates/interface/PackedCandidate.h"
 #include "DataFormats/Scouting/interface/Run3ScoutingParticle.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
@@ -59,6 +62,7 @@ Run3ScoutingParticleToPackedCandidateProducer::Run3ScoutingParticleToPackedCandi
       covarianceVersion_(iConfig.getParameter<int>("covarianceVersion")),
       covarianceSchema_(iConfig.getParameter<int>("covarianceSchema")) {
   produces<pat::PackedCandidateCollection>();
+  produces<edm::Association<pat::PackedCandidateCollection>>();
 }
 
 void Run3ScoutingParticleToPackedCandidateProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
@@ -71,10 +75,11 @@ void Run3ScoutingParticleToPackedCandidateProducer::produce(edm::Event& iEvent, 
   const auto& vertices = *verticesHandle;
   reco::VertexRefProd vertexRefProd(verticesHandle);
 
-  const auto& tracks = iEvent.get(trackToken_);
+  auto tracksHandle = iEvent.getHandle(trackToken_);
+  const auto& tracks = *tracksHandle;
 
-  // Build a "used" flag so each reco::Track is matched at most once
-  std::vector<bool> trackUsed(tracks.size(), false);
+  // Index of the candidate matched to each reco::Track (-1 if none), so each track is matched at most once
+  std::vector<int> trackToCandidate(tracks.size(), -1);
 
   output->reserve(particles.size());
 
@@ -154,7 +159,7 @@ void Run3ScoutingParticleToPackedCandidateProducer::produce(edm::Event& iEvent, 
       int bestIdx = -1;
       float bestMetric = 999.f;
       for (size_t iTk = 0; iTk < tracks.size(); ++iTk) {
-        if (trackUsed[iTk])
+        if (trackToCandidate[iTk] >= 0)
           continue;
         const auto& tk = tracks[iTk];
         float dEta = trkEta - tk.eta();
@@ -170,14 +175,20 @@ void Run3ScoutingParticleToPackedCandidateProducer::produce(edm::Event& iEvent, 
       // Require reasonable match quality
       if (bestIdx >= 0 && bestMetric < 0.01f) {
         cand.setTrackProperties(tracks[bestIdx], covarianceSchema_, covarianceVersion_);
-        trackUsed[bestIdx] = true;
+        trackToCandidate[bestIdx] = output->size();
       }
     }
 
     output->push_back(cand);
   }
 
-  iEvent.put(std::move(output));
+  auto outputHandle = iEvent.put(std::move(output));
+
+  auto trackToCandidateMap = std::make_unique<edm::Association<pat::PackedCandidateCollection>>(outputHandle);
+  edm::Association<pat::PackedCandidateCollection>::Filler filler(*trackToCandidateMap);
+  filler.insert(tracksHandle, trackToCandidate.begin(), trackToCandidate.end());
+  filler.fill();
+  iEvent.put(std::move(trackToCandidateMap));
 }
 
 void Run3ScoutingParticleToPackedCandidateProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {

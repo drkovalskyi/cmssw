@@ -1,5 +1,7 @@
 import FWCore.ParameterSet.Config as cms
 from Configuration.Eras.Modifier_run3_scouting_2024_cff import run3_scouting_2024
+from RecoVertex.V0Producer.generalV0Candidates_cfi import generalV0Candidates as _generalV0Candidates
+from PhysicsTools.PatAlgos.slimming.slimmedSecondaryVertices_cfi import slimmedSecondaryVertices as _slimmedSecondaryVertices
 
 # Use standard MiniAOD collection names for NanoAOD compatibility
 
@@ -23,8 +25,10 @@ packedPFCandidates = cms.EDProducer("Run3ScoutingParticleToPackedCandidateProduc
 # Muons - standard MiniAOD name
 # Note: From 2024, there are two muon collections (with/without vertex)
 # Default uses hltScoutingMuonPacker, 2024+ uses hltScoutingMuonPackerVtx
+# Muons matched to a scouting PF muon candidate are flagged as PF muons
 slimmedMuons = cms.EDProducer("PatFromScoutingMuonProducer",
-    src=cms.InputTag("hltScoutingMuonPacker")
+    src=cms.InputTag("hltScoutingMuonPacker"),
+    pfCandidates=cms.InputTag("hltScoutingPFPacker")
 )
 # For 2024 data, use hltScoutingMuonPackerVtx which includes vertex information
 run3_scouting_2024.toModify(slimmedMuons, src="hltScoutingMuonPackerVtx")
@@ -32,7 +36,8 @@ run3_scouting_2024.toModify(slimmedMuons, src="hltScoutingMuonPackerVtx")
 # Displaced muons (no vertex constraint) - only available from 2024+
 # Before 2024, there was only hltScoutingMuonPacker (no Vtx/NoVtx split)
 slimmedMuonsNoVtx = cms.EDProducer("PatFromScoutingMuonProducer",
-    src=cms.InputTag("hltScoutingMuonPackerNoVtx")
+    src=cms.InputTag("hltScoutingMuonPackerNoVtx"),
+    pfCandidates=cms.InputTag("hltScoutingPFPacker")
 )
 
 # Dimuon displaced vertices as VertexCompositePtrCandidate (like slimmedSecondaryVertices)
@@ -85,6 +90,35 @@ scoutingTracks = cms.EDProducer("Run3ScoutingTrackToRecoTrackProducer",
     src=cms.InputTag("hltScoutingTrackPacker")
 )
 
+# Lost tracks - standard MiniAOD name
+# Scouting tracks not matched to any packedPFCandidate, with track details
+lostTracks = cms.EDProducer("ScoutingLostTracksProducer",
+    tracks=cms.InputTag("scoutingTracks"),
+    trackVertexIndex=cms.InputTag("scoutingTracks", "vertexIndex"),
+    packedPFCandidates=cms.InputTag("packedPFCandidates"),
+    vertices=cms.InputTag("offlineSlimmedPrimaryVertices"),
+    covarianceVersion=cms.int32(1),
+    covarianceSchema=cms.int32(520)
+)
+
+# V0s (Kshort, Lambda) reconstructed from scouting tracks
+# Scouting tracks have no TrackExtra, so the inner hit position cut must be disabled
+generalV0Candidates = _generalV0Candidates.clone(
+    trackRecoAlgorithm="scoutingTracks",
+    vertices="offlineSlimmedPrimaryVertices",
+    innerHitPosCut=-1.
+)
+
+# V0s with daughters pointing to packedPFCandidates/lostTracks - standard MiniAOD names
+slimmedKshortVertices = _slimmedSecondaryVertices.clone(
+    src="generalV0Candidates:Kshort",
+    packedPFCandidates="packedPFCandidates",
+    lostTracksCandidates=cms.InputTag("lostTracks")
+)
+slimmedLambdaVertices = slimmedKshortVertices.clone(
+    src="generalV0Candidates:Lambda"
+)
+
 # Beam spot from conditions database
 offlineBeamSpot = cms.EDProducer("BeamSpotProducer")
 
@@ -127,6 +161,10 @@ scoutingToMiniAODTask = cms.Task(
     slimmedJets,
     slimmedMETs,
     scoutingTracks,
+    lostTracks,
+    generalV0Candidates,
+    slimmedKshortVertices,
+    slimmedLambdaVertices,
     fixedGridRhoFastjetAll,
     gtStage2Digis,
     gmtStage2Digis,
